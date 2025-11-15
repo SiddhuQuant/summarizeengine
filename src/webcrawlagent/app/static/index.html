@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Web Crawl Agent</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #0b1523;
+        color: #f3f4f6;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+      main {
+        width: min(900px, 100%);
+        background: #111a2b;
+        border: 1px solid #1f2d3d;
+        border-radius: 18px;
+        padding: 2rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      }
+      h1 {
+        margin-top: 0;
+      }
+      form {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      input[type="text"], textarea {
+        flex: 1;
+        padding: 0.9rem 1rem;
+        border-radius: 8px;
+        border: 1px solid #1f2d3d;
+        background: #0d1522;
+        color: inherit;
+        font-family: inherit;
+        resize: vertical;
+        min-height: 2.5rem;
+      }
+      textarea {
+        min-height: 100px;
+      }
+      .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        flex: 1;
+      }
+      .file-upload-group {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      input[type="file"] {
+        display: none;
+      }
+      .file-label {
+        padding: 0.9rem 1.5rem;
+        border-radius: 8px;
+        border: 1px solid #1f2d3d;
+        background: #1d2435;
+        color: inherit;
+        cursor: pointer;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .file-label:hover {
+        background: #252d3f;
+      }
+      .file-name {
+        color: #9ca3af;
+        font-size: 0.9rem;
+      }
+      button {
+        padding: 0.9rem 1.8rem;
+        border-radius: 8px;
+        border: none;
+        background: #2563eb;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      button:disabled {
+        background: #4b5563;
+        cursor: not-allowed;
+      }
+      .mode-toggle {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
+      .mode-btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: 1px solid #1f2d3d;
+        background: #0d1522;
+        color: inherit;
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+      .mode-btn.active {
+        background: #2563eb;
+        border-color: #2563eb;
+      }
+      #conversation {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        max-height: 320px;
+        overflow-y: auto;
+        margin-bottom: 1.5rem;
+      }
+      .bubble {
+        padding: 0.9rem 1rem;
+        border-radius: 14px;
+        width: fit-content;
+        max-width: 80%;
+        line-height: 1.4;
+      }
+      .user {
+        align-self: flex-end;
+        background: #2563eb;
+      }
+      .agent {
+        background: #1d2435;
+      }
+      #summary-card {
+        background: #0d1522;
+        border: 1px solid #1f2d3d;
+        border-radius: 16px;
+        padding: 1.5rem;
+      }
+      .summary-section + .summary-section {
+        margin-top: 1rem;
+      }
+      ul {
+        margin: 0.4rem 0 0 1rem;
+      }
+      a.download {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 1rem;
+        text-decoration: none;
+        color: #38bdf8;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Web Crawl Agent</h1>
+      <div class="mode-toggle">
+        <button class="mode-btn active" data-mode="url">🌐 URL</button>
+        <button class="mode-btn" data-mode="text">📝 Text</button>
+        <button class="mode-btn" data-mode="file">📄 Document</button>
+      </div>
+      <form id="crawl-form">
+        <div class="input-group" id="url-group">
+          <input type="text" id="url-input" placeholder="https://example.com" required />
+        </div>
+        <div class="input-group" id="text-group" style="display: none;">
+          <textarea id="text-input" placeholder="Paste or type text to summarize..." required></textarea>
+        </div>
+        <div class="input-group" id="file-group" style="display: none;">
+          <div class="file-upload-group">
+            <label for="file-input" class="file-label">📎 Choose File</label>
+            <input type="file" id="file-input" accept=".txt,.md,.pdf,.doc,.docx" />
+            <span class="file-name" id="file-name">No file selected</span>
+          </div>
+        </div>
+        <button type="submit" id="submit-btn">Analyze</button>
+      </form>
+      <section id="conversation"></section>
+      <section id="summary-card" hidden>
+        <div class="summary-section">
+          <h2>Overview</h2>
+          <p id="overview"></p>
+          <p id="content-type" style="font-size: 0.9rem; color: #9ca3af; margin-top: 0.5rem;"></p>
+        </div>
+        <div id="dynamic-sections"></div>
+        <div class="summary-section">
+          <h3>Metrics</h3>
+          <ul id="metrics"></ul>
+        </div>
+        <a id="download-link" class="download" href="#" target="_blank">⬇ Download PDF</a>
+      </section>
+    </main>
+
+    <script>
+      const form = document.getElementById('crawl-form');
+      const urlInput = document.getElementById('url-input');
+      const textInput = document.getElementById('text-input');
+      const fileInput = document.getElementById('file-input');
+      const fileName = document.getElementById('file-name');
+      const submitBtn = document.getElementById('submit-btn');
+      const convo = document.getElementById('conversation');
+      const summaryCard = document.getElementById('summary-card');
+      const overviewEl = document.getElementById('overview');
+      const contentTypeEl = document.getElementById('content-type');
+      const dynamicSectionsEl = document.getElementById('dynamic-sections');
+      const metricsEl = document.getElementById('metrics');
+      const downloadLink = document.getElementById('download-link');
+
+      let source;
+      let currentMode = 'url';
+
+      // Mode switching
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const mode = btn.dataset.mode;
+          currentMode = mode;
+          document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          
+          document.getElementById('url-group').style.display = mode === 'url' ? 'block' : 'none';
+          document.getElementById('text-group').style.display = mode === 'text' ? 'block' : 'none';
+          document.getElementById('file-group').style.display = mode === 'file' ? 'block' : 'none';
+          
+          // Update required attributes
+          urlInput.required = mode === 'url';
+          textInput.required = mode === 'text';
+          fileInput.required = mode === 'file';
+        });
+      });
+
+      // File input handler
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          fileName.textContent = file.name;
+        } else {
+          fileName.textContent = 'No file selected';
+        }
+      });
+
+      function isUrl(str) {
+        try {
+          new URL(str);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Analyzing...';
+
+        try {
+          if (currentMode === 'url') {
+            const input = urlInput.value.trim();
+            if (!input) return;
+            if (isUrl(input)) {
+              addBubble('You', input, 'user');
+              startStream(input);
+            } else {
+              // Treat as text if not a valid URL
+              addBubble('You', input.substring(0, 100) + (input.length > 100 ? '...' : ''), 'user');
+              await analyzeText(input);
+            }
+          } else if (currentMode === 'text') {
+            const text = textInput.value.trim();
+            if (!text) return;
+            addBubble('You', text.substring(0, 100) + (text.length > 100 ? '...' : ''), 'user');
+            await analyzeText(text);
+          } else if (currentMode === 'file') {
+            const file = fileInput.files[0];
+            if (!file) {
+              alert('Please select a file');
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Analyze';
+              return;
+            }
+            addBubble('You', `Uploaded: ${file.name}`, 'user');
+            await analyzeDocument(file);
+          }
+        } catch (error) {
+          addBubble('Agent', `Error: ${error.message}`, 'agent');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Analyze';
+        }
+      });
+
+      async function analyzeText(text) {
+        summaryCard.hidden = true;
+        clearSummary();
+        addBubble('Agent', 'Analyzing text...', 'agent');
+        
+        try {
+          const response = await fetch('/api/analyze-text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, document_type: 'document' })
+          });
+          
+          if (!response.ok) {
+            let errorMessage = 'Analysis failed';
+            try {
+              const error = await response.json();
+              errorMessage = error.detail || error.message || errorMessage;
+            } catch {
+              errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
+          }
+          
+          const data = await response.json();
+          renderSummary(data);
+          addBubble('Agent', 'Summary complete ✅', 'agent');
+        } catch (error) {
+          const errorMsg = error.message || 'Unknown error occurred';
+          addBubble('Agent', `Error: ${errorMsg}`, 'agent');
+          console.error('Analysis error:', error);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Analyze';
+        }
+      }
+
+      async function analyzeDocument(file) {
+        summaryCard.hidden = true;
+        clearSummary();
+        addBubble('Agent', 'Processing document...', 'agent');
+        
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('document_type', 'document');
+          
+          const response = await fetch('/api/analyze-document', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (!response.ok) {
+            let errorMessage = 'Analysis failed';
+            try {
+              const error = await response.json();
+              errorMessage = error.detail || error.message || errorMessage;
+            } catch {
+              errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
+          }
+          
+          const data = await response.json();
+          renderSummary(data);
+          addBubble('Agent', 'Summary complete ✅', 'agent');
+        } catch (error) {
+          const errorMsg = error.message || 'Unknown error occurred';
+          addBubble('Agent', `Error: ${errorMsg}`, 'agent');
+          console.error('Document analysis error:', error);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Analyze';
+        }
+      }
+
+      function startStream(url) {
+        summaryCard.hidden = true;
+        clearSummary();
+        if (source) {
+          source.close();
+        }
+        addBubble('Agent', 'Starting crawl...', 'agent');
+        source = new EventSource(`/api/stream?url=${encodeURIComponent(url)}`);
+        source.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === 'status') {
+            addBubble('Agent', data.message, 'agent');
+          } else if (data.type === 'summary') {
+            renderSummary(data);
+            addBubble('Agent', 'Summary complete ✅', 'agent');
+            source.close();
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Analyze';
+          } else if (data.type === 'error') {
+            addBubble('Agent', `Error: ${data.message}`, 'agent');
+            source.close();
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Analyze';
+          }
+        };
+        source.onerror = () => {
+          addBubble('Agent', 'Connection lost. Please retry.', 'agent');
+          source.close();
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Analyze';
+        };
+      }
+
+      function clearSummary() {
+        metricsEl.innerHTML = '';
+        dynamicSectionsEl.innerHTML = '';
+        overviewEl.textContent = '';
+        contentTypeEl.textContent = '';
+      }
+
+      function addBubble(author, message, cls) {
+        const bubble = document.createElement('div');
+        bubble.className = `bubble ${cls}`;
+        bubble.innerHTML = `<strong>${author}:</strong> ${message}`;
+        convo.appendChild(bubble);
+        convo.scrollTop = convo.scrollHeight;
+      }
+
+      function renderSummary(data) {
+        const { summary, metrics, pdf_path } = data;
+        overviewEl.textContent = summary.overview;
+        
+        // Display content type
+        if (summary.content_type) {
+          contentTypeEl.textContent = `Type: ${summary.content_type.charAt(0).toUpperCase() + summary.content_type.slice(1)}`;
+        }
+        
+        // Render dynamic sections
+        dynamicSectionsEl.innerHTML = '';
+        if (summary.sections && typeof summary.sections === 'object') {
+          // New dynamic format
+          const sectionTitles = {
+            "speakers": "Speakers/Participants",
+            "topics_discussed": "Topics Discussed",
+            "key_points": "Key Points",
+            "main_points": "Main Points",
+            "main_themes": "Main Themes",
+            "key_arguments": "Key Arguments",
+            "important_facts": "Important Facts",
+            "conclusions": "Conclusions",
+            "decisions": "Decisions Made",
+            "decisions_made": "Decisions Made",
+            "action_items": "Action Items",
+            "next_steps": "Next Steps",
+            "participants": "Participants",
+            "agenda_items": "Agenda Items",
+            "main_sections": "Main Sections",
+            "key_findings": "Key Findings",
+            "important_details": "Important Details",
+            "summary_points": "Summary Points",
+            "key_insights": "Key Insights",
+            "important_information": "Important Information",
+            "takeaways": "Takeaways",
+            "key_sections": "Key Sections",
+            "highlights": "Highlights",
+            "recommendations": "Recommendations",
+            "error_info": "Error Information",
+            "content_stats": "Content Statistics",
+            "suggestions": "Suggestions",
+          };
+          
+          for (const [sectionKey, sectionItems] of Object.entries(summary.sections)) {
+            if (Array.isArray(sectionItems) && sectionItems.length > 0) {
+              const sectionDiv = document.createElement('div');
+              sectionDiv.className = 'summary-section';
+              const title = sectionTitles[sectionKey] || sectionKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              const h3 = document.createElement('h3');
+              h3.textContent = title;
+              sectionDiv.appendChild(h3);
+              const ul = document.createElement('ul');
+              populateList(ul, sectionItems);
+              sectionDiv.appendChild(ul);
+              dynamicSectionsEl.appendChild(sectionDiv);
+            }
+          }
+        } else {
+          // Legacy format fallback
+          if (summary.sections && Array.isArray(summary.sections)) {
+            const sectionDiv = document.createElement('div');
+            sectionDiv.className = 'summary-section';
+            const h3 = document.createElement('h3');
+            h3.textContent = 'Key Sections';
+            sectionDiv.appendChild(h3);
+            const ul = document.createElement('ul');
+            populateList(ul, summary.sections);
+            sectionDiv.appendChild(ul);
+            dynamicSectionsEl.appendChild(sectionDiv);
+          }
+          if (summary.highlights && Array.isArray(summary.highlights)) {
+            const sectionDiv = document.createElement('div');
+            sectionDiv.className = 'summary-section';
+            const h3 = document.createElement('h3');
+            h3.textContent = 'Highlights';
+            sectionDiv.appendChild(h3);
+            const ul = document.createElement('ul');
+            populateList(ul, summary.highlights);
+            sectionDiv.appendChild(ul);
+            dynamicSectionsEl.appendChild(sectionDiv);
+          }
+          if (summary.recommendations && Array.isArray(summary.recommendations)) {
+            const sectionDiv = document.createElement('div');
+            sectionDiv.className = 'summary-section';
+            const h3 = document.createElement('h3');
+            h3.textContent = 'Recommendations';
+            sectionDiv.appendChild(h3);
+            const ul = document.createElement('ul');
+            populateList(ul, summary.recommendations);
+            sectionDiv.appendChild(ul);
+            dynamicSectionsEl.appendChild(sectionDiv);
+          }
+        }
+        
+        // Metrics
+        const metricsItems = [];
+        if (metrics.total_pages !== undefined && metrics.total_pages > 0) {
+          metricsItems.push(`Pages crawled: ${metrics.total_pages}`);
+        }
+        if (metrics.internal_links !== undefined && metrics.internal_links > 0) {
+          metricsItems.push(`Internal links: ${metrics.internal_links}`);
+        }
+        if (metrics.external_links !== undefined && metrics.external_links > 0) {
+          metricsItems.push(`External links: ${metrics.external_links}`);
+        }
+        if (metrics.top_headings && metrics.top_headings.length > 0) {
+          metricsItems.push(`Top headings: ${metrics.top_headings.join(', ')}`);
+        }
+        if (metrics.keywords && metrics.keywords.length > 0) {
+          metricsItems.push(`Keywords: ${metrics.keywords.join(', ')}`);
+        }
+        if (metricsItems.length === 0) {
+          metricsItems.push('Text/document analysis');
+        }
+        populateList(metricsEl, metricsItems);
+        
+        downloadLink.href = pdf_path;
+        summaryCard.hidden = false;
+      }
+
+      function populateList(node, items) {
+        node.innerHTML = '';
+        items.forEach((item) => {
+          const li = document.createElement('li');
+          li.textContent = item;
+          node.appendChild(li);
+        });
+      }
+    </script>
+  </body>
+</html>
