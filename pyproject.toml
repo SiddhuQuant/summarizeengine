@@ -22,7 +22,8 @@ dependencies = [
   "fpdf2>=2.7",
   "sse-starlette>=1.6",
   "rich>=13.7",
-  "PyPDF2>=3.0"
+  "PyPDF2>=3.0",
+  "python-docx>=1.1"
 ]
 
 [project.optional-dependencies]

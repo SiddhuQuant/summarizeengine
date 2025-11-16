@@ -10,7 +10,7 @@ from fpdf.enums import XPos, YPos
 from webcrawlagent.config import Settings
 from webcrawlagent.report.models import ReportPayload
 
-TITLE = "Content Summary Report"
+TITLE = "Summary Report"
 LEFT_MARGIN = 20
 RIGHT_MARGIN = 20
 TOP_MARGIN = 20

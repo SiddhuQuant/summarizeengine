@@ -40,6 +40,40 @@ async def extract_text_from_file(file: UploadFile) -> str:
         except Exception as exc:
             raise RuntimeError(f"Failed to extract text from PDF: {exc}") from exc
 
+    # Handle Word documents (.docx)
+    if file_extension in [".docx", ".doc"]:
+        try:
+            from docx import Document  # type: ignore[import-untyped]
+        except ImportError:
+            raise RuntimeError(
+                "Word document extraction requires python-docx. Install it with: pip install python-docx"
+            )
+        
+        doc_file = io.BytesIO(content)
+        try:
+            # Note: python-docx only supports .docx, not legacy .doc files
+            if file_extension == ".doc":
+                raise RuntimeError(
+                    "Legacy .doc files are not supported. Please convert to .docx format."
+                )
+            doc = Document(doc_file)
+            text_parts = []
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_parts.append(paragraph.text)
+            # Also extract text from tables
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = []
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            row_text.append(cell.text.strip())
+                    if row_text:
+                        text_parts.append(" | ".join(row_text))
+            return "\n\n".join(text_parts) if text_parts else ""
+        except Exception as exc:
+            raise RuntimeError(f"Failed to extract text from Word document: {exc}") from exc
+
     # For other file types, try to decode as text
     try:
         return content.decode("utf-8")
@@ -49,6 +83,6 @@ async def extract_text_from_file(file: UploadFile) -> str:
         except UnicodeDecodeError:
             raise RuntimeError(
                 f"Unsupported file type: {file_extension}. "
-                "Supported types: .txt, .md, .pdf"
+                "Supported types: .txt, .md, .pdf, .docx"
             )
 

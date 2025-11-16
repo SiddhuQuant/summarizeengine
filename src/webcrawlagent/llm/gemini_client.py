@@ -27,8 +27,8 @@ class GeminiClient:
         self._client = httpx.AsyncClient(timeout=50)
 
     async def summarize_site(self, crawl: CrawlResult, analysis: AnalysisSummary) -> SiteSummary:
-        if not self.settings.gemini_api_key:
-            raise RuntimeError("GEMINI_API_KEY is not configured")
+        if not self.settings.gemini_api_key or not self.settings.gemini_api_key.strip():
+            raise RuntimeError("GEMINI_API_KEY is not configured. Please set a valid API key in your environment variables or .env file.")
         prompt = build_summary_prompt(crawl, analysis, self.settings.crawl_max_tokens)
         url = f"{GEMINI_BASE_URL}/models/{self.settings.gemini_model}:generateContent"
         response = await self._client.post(
@@ -70,8 +70,8 @@ class GeminiClient:
 
     async def summarize_text(self, text: str, document_type: str = "document") -> SiteSummary:
         """Summarize raw text content using Gemini."""
-        if not self.settings.gemini_api_key:
-            raise RuntimeError("GEMINI_API_KEY is not configured")
+        if not self.settings.gemini_api_key or not self.settings.gemini_api_key.strip():
+            raise RuntimeError("GEMINI_API_KEY is not configured. Please set a valid API key in your environment variables or .env file.")
         prompt = build_text_summary_prompt(text, document_type)
         url = f"{GEMINI_BASE_URL}/models/{self.settings.gemini_model}:generateContent"
         # Note: We don't use responseSchema here because Gemini doesn't support
