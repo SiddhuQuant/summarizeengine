@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import httpx
@@ -92,7 +93,7 @@ class GeminiClient:
                 "generationConfig": {
                     "temperature": 0.3,
                     "topP": 0.95,
-                    "maxOutputTokens": 2048,  # Increased for more detailed summaries
+                    "maxOutputTokens": 4096,  # Increased for complex documents and detailed summaries
                     "responseMimeType": "application/json",
                 },
             },
@@ -110,6 +111,15 @@ class GeminiClient:
         
         payload = response.json()
         text_response = _extract_text(payload)
+        
+        # Check if response was truncated
+        finish_reason = None
+        if payload.get("candidates"):
+            finish_reason = payload["candidates"][0].get("finishReason")
+            if finish_reason == "MAX_TOKENS":
+                # Response was truncated, try to extract partial JSON
+                pass
+        
         parsed = _parse_summary_text(text_response)
         return SiteSummary.from_llm_payload(parsed)
 
@@ -148,12 +158,71 @@ def _parse_summary_text(text: str) -> dict[str, Any]:
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError as exc:  # pragma: no cover - depends on remote output
+        # Try to extract partial JSON if the response was truncated
+        partial_data = _try_extract_partial_json(cleaned)
+        if partial_data:
+            return partial_data
+        
         preview = cleaned.strip().replace("\n", " ")
         if len(preview) > 240:
             preview = preview[:237] + "..."
         raise GeminiContentError(
             f"Gemini returned invalid JSON: {preview}", payload={"text": text}
         ) from exc
+
+
+def _try_extract_partial_json(text: str) -> dict[str, Any] | None:
+    """Attempt to extract partial JSON from truncated responses."""
+    # Try to find the last complete JSON structure
+    # Look for closing braces to find where JSON might be complete
+    text = text.strip()
+    
+    # Try to find and extract a valid JSON object even if incomplete
+    # Look for the start of a JSON object
+    start_idx = text.find("{")
+    if start_idx == -1:
+        return None
+    
+    # Try progressively shorter suffixes to find valid JSON
+    for end_offset in range(0, len(text) - start_idx):
+        try:
+            candidate = text[start_idx:len(text) - end_offset]
+            # Try to close any open structures
+            open_braces = candidate.count("{") - candidate.count("}")
+            open_brackets = candidate.count("[") - candidate.count("]")
+            
+            # Close open structures
+            if open_braces > 0:
+                candidate += "}" * open_braces
+            if open_brackets > 0:
+                candidate += "]" * open_brackets
+            
+            # Try to parse
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict) and parsed:
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            continue
+    
+    # If that didn't work, try to extract just the overview field
+    # Look for "overview" field even in incomplete JSON
+    overview_match = None
+    overview_pattern = r'"overview"\s*:\s*"([^"]*(?:\\.[^"]*)*)"'
+    match = re.search(overview_pattern, text)
+    if match:
+        overview_match = match.group(1).replace('\\"', '"').replace('\\n', '\n')
+    
+    if overview_match:
+        # Return a minimal valid structure with at least the overview
+        return {
+            "overview": overview_match,
+            "content_type": "document",
+            "sections": {
+                "note": ["JSON response was incomplete. Only partial data extracted."]
+            }
+        }
+    
+    return None
 
 
 def _strip_code_block(text: str) -> str:
